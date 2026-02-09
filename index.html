@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指派系統 - 外部存取版</title>
+    <style>
+        body { font-family: sans-serif; padding: 10px; text-align: center; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+        .usage-box { margin-bottom: 10px; background: #eee; border-radius: 20px; height: 10px; overflow: hidden; }
+        .usage-bar { height: 100%; transition: width 0.5s; }
+        .sales-btn { width: 95%; padding: 18px; margin: 6px 0; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        .sales-btn:active { background: #3e8e41; transform: scale(0.98); }
+        .other-city-btn { background: #3498db; width: 45%; margin: 4px; padding: 10px; font-size: 14px; }
+        .sales-btn-small { background: #5c7cfa; width: 90%; padding: 12px; margin: 5px 0; font-size: 16px; }
+        .loading-screen { padding: 50px; font-size: 20px; color: #666; }
+        hr { border: 0; border-top: 1px solid #ddd; margin: 20px 0; }
+        .copy-area { margin-top: 20px; background: #f8f9fa; border: 1px dashed #999; padding: 10px; border-radius: 10px; text-align: left; }
+        textarea { width: 100%; height: 200px; border: none; background: transparent; font-size: 14px; resize: none; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="loading-screen">🌀 正在連線至公司資料庫...</div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. 設定區 (請修改這裡)
+    // ==========================================
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxjMhHYefdG67fgeP52VDGWEtkLrNJwJjSnkixjyNf82zQa0xhPxoUSSOZTkYYxEYs/exec"; // 貼上你的 Web App URL
+    const WEB_APP_PASSWORD = "a97337000";
+
+    // ==========================================
+    // 2. 初始化與資料讀取
+    // ==========================================
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get('phone') || "";
+    const city = params.get('city') || "";
+
+    async function init() {
+        if (!phone || !city) {
+            document.getElementById('app').innerHTML = "<h2>⚠️ 參數缺失 (Phone/City)</h2>";
+            return;
+        }
+
+        try {
+            // 向 GAS 請求 JSON 資料 (繞過登入牆)
+            const response = await fetch(`${GAS_URL}?key=${API_KEY}&action=get_assign_data&phone=${phone}&city=${encodeURIComponent(city)}`);
+            const result = await response.json();
+            
+            if (result.status === "success") {
+                renderUI(result.data);
+            } else {
+                showError("找不到客戶資料或權限不足");
+            }
+        } catch (err) {
+            showError("連線失敗，請檢查網路或 GAS 設定");
+        }
+    }
+
+    // ==========================================
+    // 3. 畫面裝潢 (複製你原本的 UI 邏輯)
+    // ==========================================
+    function renderUI(data) {
+        const usagePercent = Math.min((data.usage / 200) * 100, 100);
+        const usageColor = (data.usage >= 170) ? "#e74c3c" : "#2ecc71";
+
+        let html = `
+            <div class="card">
+                <div style="font-size:11px;color:#666;text-align:left;">目前 LINE 額度：${data.usage}/200</div>
+                <div class="usage-box">
+                    <div class="usage-bar" style="width:${usagePercent}%; background:${usageColor};"></div>
+                </div>
+                <h2>📍 指派客戶 [${city}]</h2>
+                <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender || ""}</div>
+                <p style="color:#666; font-size:14px;">需求：${data.client.req}</p>
+                <hr>
+                <h3>⭐ ${city.replace(/[市縣]/g, "")} 業務</h3>
+        `;
+
+        // 畫出主要地區業務按鈕
+        data.sales.primary.forEach(name => {
+            html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name}</button>`;
+        });
+
+        // 其他地區收納
+        html += `
+            <button id="tBtn" style="background:#95a5a6;width:90%;margin-top:20px;color:white;border:none;padding:10px;border-radius:10px;" onclick="document.getElementById('oG').style.display='block';this.style.display='none';">🌐 顯示其他地區業務</button>
+            <div id="oG" style="display:none;margin-top:10px;border:1px solid #ddd;padding:10px;border-radius:10px;">
+        `;
+
+        Object.keys(data.sales.others).forEach(c => {
+            html += `<div style="margin-bottom:10px;"><b>${c}</b><br>`;
+            data.sales.others[c].forEach(name => {
+                html += `<button class="sales-btn sales-btn-small" onclick="executeAssign('${name}')">${name}</button>`;
+            });
+            html += `</div>`;
+        });
+
+        html += `</div></div>`;
+        document.getElementById('app').innerHTML = html;
+    }
+
+    // ==========================================
+    // 4. 指派動作 (執行 doPost)
+    // ==========================================
+    async function executeAssign(salesName) {
+        if (!confirm(`確定要將案件指派給【${salesName}】嗎？`)) return;
+
+        document.getElementById('app').innerHTML = `<div class="loading-screen">🚀 正在寫入試算表並發送 LINE...</div>`;
+
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    key: API_KEY,
+                    phone: phone,
+                    city: city,
+                    salesName: salesName
+                })
+            });
+            const res = await response.json();
+            renderSuccess(res, salesName);
+        } catch (err) {
+            alert("指派失敗，請手動更新試算表");
+            location.reload();
+        }
+    }
+
+    function renderSuccess(res, salesName) {
+        let h = `
+            <div class="card">
+                <h1 style="color:#2ecc71;">${res.status}</h1>
+        `;
+        
+        if (!res.pushed) {
+            h += `
+                <div class="copy-area">
+                    <p style="font-size:13px;color:#666;">系統額度已滿，請手動複製轉傳給業務：</p>
+                    <textarea readonly id="copyTarget">${res.copyText}</textarea>
+                    <button class="sales-btn" style="background:#3498db;" onclick="copyAndClose()">📋 點擊複製並關閉</button>
+                </div>
+            `;
+        } else {
+            h += `<p>✅ 訊息已透過 LINE 自動發送給 ${salesName}。</p>
+                  <button class="sales-btn" onclick="window.close()">關閉視窗</button>`;
+        }
+        
+        h += `</div>`;
+        document.getElementById('app').innerHTML = h;
+    }
+
+    function copyAndClose() {
+        const area = document.getElementById('copyTarget');
+        area.select();
+        document.execCommand('copy');
+        alert('已複製內容！');
+        window.close();
+    }
+
+    function showError(msg) {
+        document.getElementById('app').innerHTML = `<h2 style="color:red;">❌ ${msg}</h2>`;
+    }
+
+    init();
+</script>
+
+</body>
+</html>
