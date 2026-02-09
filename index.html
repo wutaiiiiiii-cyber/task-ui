@@ -25,7 +25,7 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxK_6zoCqjENgn85ATWJPavjxPZU3CpgydYT5VQBOXOFwubUlqbVPPl7C_vrs2O1kQs/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbz6K0W5qbErtHauylfFgOhmymv6kYesnVRG-3MkkRlgNCuuoQnJjAtdY_2Pmcx7IYY/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
@@ -61,16 +61,29 @@
         document.getElementById('app').innerHTML = html;
     }
 
-    async function doAssign(name) {
-        if(!confirm('指派給 '+name+'？')) return;
-        document.getElementById('app').innerHTML = "指派中...";
-        const res = await fetch(GAS_URL, {
-            method: 'POST',
-            body: JSON.stringify({ key: WEB_APP_PASSWORD, type: "assignment", phone: phone, city: city, salesName: name })
-        });
-        const result = await res.json();
-        document.getElementById('app').innerHTML = `<h1>${result.status}</h1><button onclick="window.close()">關閉</button>`;
-    }
+   async function doAssign(name) {
+    if(!confirm('指派給 '+name+'？')) return;
+    document.getElementById('app').innerHTML = "🚀 正在指派中...";
+    
+    // 改用 GET 方式，把參數全部塞在網址後面
+    const assignUrl = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_assign&phone=${phone}&city=${encodeURIComponent(city)}&salesName=${encodeURIComponent(name)}`;
+    
+    const res = await fetch(assignUrl);
+    const result = await res.json();
+    renderSuccess(result, name);
+}
+
+// --- 修改業務回報的傳送方式 ---
+async function submitReport() {
+    if(!selectedValue) return alert('請選進度');
+    document.getElementById('app').innerHTML = "📤 傳送回報中...";
+    const note = document.getElementById('note').value;
+    const msg = selectedValue + (note ? ' ('+note+')' : '');
+    
+    const reportUrl = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
+    
+    await fetch(reportUrl);
+    document.getElementById('app').innerHTML = `<h1>✅ 回報成功</h1><button onclick="window.close()">關閉</button>`;
 
     // --- 業務回報邏輯 ---
     async function loadReportUI() {
