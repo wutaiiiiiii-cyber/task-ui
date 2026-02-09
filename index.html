@@ -22,7 +22,7 @@
 <div id="app"><div style="padding:100px; font-size:20px;">🌀 安全載入中...</div></div>
 <script>
     // --- 務必修改這裡 ---
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzr5GeC8NtKcYg1PmxPETcGHmqv2kqNE6uXHQuwZd4-mCbRnxFU44uTAQaAVCH9cpHM/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwHpE7zMDnMIKKgRTqBVzM_j7u-S8lPWvCiGXe1K4jSTGPfhK3-apRCWyDafn_srQ/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
@@ -92,14 +92,33 @@
         el.classList.add('selected'); selectedValue = val;
     }
 
-    async function submitReport() {
-        if(!selectedValue) return alert('請選擇進度');
-        document.getElementById('app').innerHTML = "📤 正在傳送...";
-        const msg = selectedValue + (document.getElementById('note').value ? ' ('+document.getElementById('note').value+')' : '');
-        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
-        await fetch(url);
-        document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
+   async function submitReport() {
+    if(!selectedValue) return alert('請先選擇一個進度狀態');
+    
+    document.getElementById('app').innerHTML = "📤 正在傳送回報，請稍候...";
+    
+    const note = document.getElementById('note').value;
+    const msg = selectedValue + (note ? ' (' + note + ')' : '');
+    
+    // 【關鍵檢查點】網址參數名稱必須跟 GAS 一致
+    // 這裡我們用 message 作為參數名稱
+    const reportUrl = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
+    
+    try {
+        const res = await fetch(reportUrl);
+        const result = await res.json();
+        
+        if (result.status === "成功") {
+            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><p>資料已同步回試算表。</p><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
+        } else {
+            alert("回報失敗：" + result.status);
+            location.reload(); // 失敗就重整
+        }
+    } catch (e) {
+        alert("連線失敗，請檢查網路");
+        location.reload();
     }
+}
 
     function copyAndClose() {
         const t = document.getElementById('t'); t.select(); document.execCommand('copy');
