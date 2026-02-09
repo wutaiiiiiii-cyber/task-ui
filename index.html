@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>公司管理系統</title>
+    <title>廣告名單指派系統</title>
     <style>
         body { font-family: sans-serif; padding: 10px; text-align: center; background: #f4f7f6; color: #333; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
@@ -12,140 +12,99 @@
         .usage-bar { height: 100%; transition: width 0.5s; }
         .history-box { background: #fff9db; padding: 10px; border-radius: 8px; text-align: left; font-size: 14px; margin-bottom: 15px; border-left: 5px solid #f1c40f; }
         .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; }
         .opt.selected { background: #2ecc71; color: white; border-color: #27ae60; }
         textarea { width: 100%; height: 80px; margin: 15px 0; padding: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
         .copy-area { margin-top: 20px; background: #f8f9fa; border: 1px dashed #999; padding: 10px; border-radius: 10px; text-align: left; }
     </style>
 </head>
 <body>
-
-<div id="app">
-    <div style="padding:100px; font-size:20px;">🌀 正在安全連線中...</div>
-</div>
-
+<div id="app"><div style="padding:100px; font-size:20px;">🌀 安全載入中...</div></div>
 <script>
-    // 1. 設定區 (請務必填寫)
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwzb-SwY9ZEx2PFU2p8OKYIzOzpPjMMQFXZ5BTCSudy6PI0s7zVseRCt-Z1A5xgHhsX/exec"; 
+    // --- 務必修改這裡 ---
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzr5GeC8NtKcYg1PmxPETcGHmqv2kqNE6uXHQuwZd4-mCbRnxFU44uTAQaAVCH9cpHM/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
-    // 2. 取得參數
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action') || "boss_assign";
-    const phone = params.get('phone') || "";
-    const city = params.get('city') || "";
+    const phone = params.get('phone');
+    const city = params.get('city');
 
     async function init() {
-        if (!phone || !city) {
-            document.getElementById('app').innerHTML = "<h2>❌ 參數缺失</h2><p>請從 LINE 重新點擊連結</p>";
-            return;
-        }
-        if (action === "sales_report") {
-            loadReportUI();
-        } else {
-            loadAssignUI();
-        }
+        if (!phone || !city) return document.getElementById('app').innerHTML = "<h2>❌ 網址參數有誤</h2>";
+        
+        const mode = (action === "sales_report") ? "get_report_data" : "get_assign_data";
+        try {
+            const res = await fetch(`${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}`);
+            const json = await res.json();
+            if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
+            
+            if (action === "sales_report") renderReportUI(json.data);
+            else renderAssignUI(json.data);
+        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線至伺服器</h2>"; }
     }
 
-    // --- 主管指派 UI ---
-    async function loadAssignUI() {
-        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=get_assign_data&phone=${phone}&city=${encodeURIComponent(city)}`;
-        const res = await fetch(url);
-        const json = await res.json();
-        if (json.status !== "success") return showError(json.msg);
-        
-        const data = json.data;
+    function renderAssignUI(data) {
         let html = `<div class="card">
             <div style="font-size:11px;text-align:left;color:#666;">額度：${data.usage}/200</div>
             <div class="usage-box"><div class="usage-bar" style="width:${(data.usage/200)*100}%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>
             <h2>📍 指派客戶 [${city}]</h2>
             <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender}</div>
-            <p style="color:#666;">需求：${data.client.req}</p>
-            <hr>`;
+            <p>需求：${data.client.req}</p><hr>`;
         
         data.sales.primary.forEach(name => {
-            html += `<button class="sales-btn" onclick="doAssign('${name}')">${name}</button>`;
+            html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name}</button>`;
         });
-
-        // 其他地區邏輯 (簡化)
-        html += `<p style="font-size:12px;color:#999;margin-top:20px;">點擊業務姓名即完成指派</p></div>`;
+        html += `<p style="font-size:12px;color:#999;">點擊姓名即可指派</p></div>`;
         document.getElementById('app').innerHTML = html;
     }
 
-    async function doAssign(salesName) {
-        if(!confirm(`確認指派給 ${salesName}？`)) return;
-        document.getElementById('app').innerHTML = "🚀 指派處理中，請稍候...";
-        
-        // 關鍵：全部改用 GET 觸發
-        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_assign&phone=${phone}&city=${encodeURIComponent(city)}&salesName=${encodeURIComponent(salesName)}`;
+    async function executeAssign(name) {
+        if(!confirm(`確認指派給 ${name}？`)) return;
+        document.getElementById('app').innerHTML = "🚀 正在指派...";
+        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_assign&phone=${phone}&city=${encodeURIComponent(city)}&salesName=${encodeURIComponent(name)}`;
         const res = await fetch(url);
         const result = await res.json();
-        
-        renderAssignSuccess(result, salesName);
+        renderAssignSuccess(result, name);
     }
 
     function renderAssignSuccess(res, name) {
         let html = `<div class="card"><h1 style="color:#2ecc71;">${res.status}</h1>`;
         if (!res.pushed) {
-            html += `<div class="copy-area"><p>請手動轉傳給業務：</p><textarea id="t" readonly>${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db;">📋 複製並關閉</button></div>`;
+            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:150px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db;">📋 複製文字並關閉</button></div>`;
         } else {
             html += `<p>✅ 已成功推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn">完成</button>`;
         }
-        document.getElementById('app').innerHTML = html + `</div>`;
+        document.getElementById('app').innerHTML = html + "</div>";
     }
 
-    // --- 業務回報 UI ---
-    async function loadReportUI() {
-        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=get_report_data&phone=${phone}&city=${encodeURIComponent(city)}`;
-        const res = await fetch(url);
-        const json = await res.json();
-        if (json.status !== "success") return showError(json.msg);
-        
-        const data = json.data;
-        let html = `<div class="card">
-            <h2>📝 回報進度</h2>
-            <p>客戶：<b>${data.name}</b> (${city})</p>
-            <div class="history-box">📌 前次紀錄：<br>${data.last}</div>
-            <div class="option-grid">`;
-        
+    function renderReportUI(data) {
+        let html = `<div class="card"><h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p><div class="history-box">📌 前次紀錄：<br>${data.last}</div><div class="option-grid">`;
         const opts = ["電話未接", "已加LINE", "約定現場", "不符條件", "已簽委託", "租金過高"];
-        opts.forEach(o => {
-            html += `<div class="opt" onclick="selectOpt(this, '${o}')">${o}</div>`;
-        });
-
-        html += `</div><textarea id="note" placeholder="在此輸入補充說明..."></textarea>
-                 <button class="sales-btn" style="background:#3498db;" onclick="submitReport()">確認送出回報</button></div>`;
+        opts.forEach(o => { html += `<div class="opt" onclick="selectOpt(this, '${o}')">${o}</div>`; });
+        html += `</div><textarea id="note" placeholder="補充說明..."></textarea><button class="sales-btn" style="background:#3498db;" onclick="submitReport()">確認送出</button></div>`;
         document.getElementById('app').innerHTML = html;
     }
 
     let selectedValue = "";
     function selectOpt(el, val) {
         document.querySelectorAll('.opt').forEach(x => x.classList.remove('selected'));
-        el.classList.add('selected');
-        selectedValue = val;
+        el.classList.add('selected'); selectedValue = val;
     }
 
     async function submitReport() {
-        if(!selectedValue) return alert('請先選擇一個進度狀態');
-        document.getElementById('app').innerHTML = "📤 正在傳送回報...";
-        const note = document.getElementById('note').value;
-        const msg = selectedValue + (note ? ' ('+note+')' : '');
-        
+        if(!selectedValue) return alert('請選擇進度');
+        document.getElementById('app').innerHTML = "📤 正在傳送...";
+        const msg = selectedValue + (document.getElementById('note').value ? ' ('+document.getElementById('note').value+')' : '');
         const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
         await fetch(url);
-        
-        document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><p>資料已同步回試算表。</p><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
+        document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
     }
 
     function copyAndClose() {
         const t = document.getElementById('t'); t.select(); document.execCommand('copy');
-        alert('已複製內容！'); window.close();
+        alert('已複製！'); window.close();
     }
-
-    function showError(msg) {
-        document.getElementById('app').innerHTML = `<h2 style="color:red;">❌ 錯誤</h2><p>${msg}</p>`;
-    }
-
     init();
 </script>
 </body>
