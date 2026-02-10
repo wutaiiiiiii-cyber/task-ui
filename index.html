@@ -21,8 +21,15 @@
     </style>
 </head>
 <body>
-<div id="app"><div style="padding-top:100px;"><div class="progress-container"><div class="progress-bar"></div></div><p>正在安全連線中...</p></div></div>
+<div id="app">
+    <div id="status-area" style="padding-top:100px;">
+        <div class="progress-container"><div class="progress-bar"></div></div>
+        <p id="status-text">正在初始化系統...</p>
+    </div>
+</div>
+
 <script>
+    // --- 務必確認這兩個值 ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxB00U1BEOShiffUwXgo8jMqJPonNT47eeGrhK3nifJswsJJJSpejkJ62FstiFM5q_Cfw/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
@@ -31,16 +38,37 @@
     const phone = params.get('phone') || "";
     const city = params.get('city') || "";
 
+    function updateStatus(txt) {
+        document.getElementById('status-text').innerText = txt;
+        console.log(txt);
+    }
+
     async function init() {
-        if (!phone || !city) return document.getElementById('app').innerHTML = "<h2>❌ 參數錯誤</h2>";
+        if (!phone || !city) {
+            document.getElementById('app').innerHTML = "<h2>❌ 網址缺少參數</h2><p>請確認網址包含 phone 與 city</p>";
+            return;
+        }
+
+        updateStatus("正在連線至公司資料庫...");
         const mode = (action === "sales_report") ? "get_report_data" : "get_assign_data";
+        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}&t=${new Date().getTime()}`;
+
         try {
-            const res = await fetch(`${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}`);
+            const res = await fetch(url);
+            updateStatus("已收到回應，正在解析資料...");
             const json = await res.json();
-            if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
+            
+            if (json.status !== "success") {
+                document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
+                return;
+            }
+
             if (action === "sales_report") renderReportUI(json.data);
             else renderAssignUI(json.data);
-        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2><p>請確認 GAS 部署為所有人且網址正確</p>"; }
+
+        } catch (e) {
+            document.getElementById('app').innerHTML = `<h2>❌ 連線失敗</h2><p>原因：${e.message}</p><button onclick="location.reload()" style="padding:10px 20px;">點我重試</button>`;
+        }
     }
 
     function renderAssignUI(data) {
@@ -131,4 +159,14 @@
         const res = await fetch(url);
         const json = await res.json();
         if (json.status === "成功") {
-            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><b
+            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()" style="justify-content:center;">關閉</button></div>`;
+        } else { alert("回報失敗：" + json.status); location.reload(); }
+    }
+
+    function copyAndClose() { const t = document.getElementById('t'); t.select(); document.execCommand('copy'); alert('已複製！'); window.close(); }
+    
+    // 啟動
+    init();
+</script>
+</body>
+</html>
