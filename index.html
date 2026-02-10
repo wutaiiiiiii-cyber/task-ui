@@ -18,13 +18,12 @@
         .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
         .opt.selected { background: #2ecc71; color: white; border-color: #27ae60; }
         textarea, input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
-        .bind-btn { background: #e67e22; color: white; padding: 15px; border-radius: 10px; text-align: center; display: block; text-decoration: none; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
 <div id="app"><div style="padding-top:100px;"><div class="progress-container"><div class="progress-bar"></div></div><p>正在安全連線中...</p></div></div>
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwakLIbKIY8igvzNoM3ANqLTzjssHejhbuYj4nhlvYo-fHyMSVb6y81DN0W7mD0aOYg9w/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxB00U1BEOShiffUwXgo8jMqJPonNT47eeGrhK3nifJswsJJJSpejkJ62FstiFM5q_Cfw/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
@@ -41,20 +40,20 @@
             if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
             if (action === "sales_report") renderReportUI(json.data);
             else renderAssignUI(json.data);
-        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2>"; }
+        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2><p>請確認 GAS 部署為所有人且網址正確</p>"; }
     }
 
     function renderAssignUI(data) {
         let html = `<div class="card">
-            <div style="font-size:11px;text-align:left;">額度：${data.usage}/200</div>
+            <div style="font-size:11px;text-align:left;">LINE 額度：${data.usage}/200</div>
             <div class="progress-container" style="width:100%; margin:5px 0;"><div style="width:${(data.usage/200)*100}%; height:100%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>`;
         
         if (data.client.currentSales) {
-            html += `<div class="warning-box">⚠️ <b>重複指派警告</b><br>已於 ${data.client.lastUpdateTime} 指派給 ${data.client.currentSales}<br>最後回報：${data.client.last || "無"}</div>`;
+            html += `<div class="warning-box">⚠️ <b>重複指派警告</b><br>已指派給 ${data.client.currentSales}<br>最後回報：${data.client.last || "無"}</div>`;
         }
 
         html += `<h2>📍 指派客戶 [${city}]</h2>
-                 <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender}</div>
+                 <div style="font-size:22px;font-weight:bold;">${data.client.name}</div>
                  <p>需求：${data.client.req}</p><hr>
                  <div class="group-title">⭐ ${city.replace(/[市縣]/g, "")} 業務 (今日接單數)</div>`;
             
@@ -63,7 +62,6 @@
             html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name} <span class="count">${count}</span></button>`;
         });
 
-        // 跨區業務按鈕
         html += `<button id="tBtn" style="background:#95a5a6;width:100%;margin-top:20px;color:white;border:none;padding:15px;border-radius:10px;font-weight:bold;cursor:pointer;" onclick="document.getElementById('oG').style.display='block';this.style.display='none';">🌐 顯示跨區業務</button>
                  <div id="oG" style="display:none;margin-top:10px;border:1px solid #ddd;padding:10px;border-radius:10px;">`;
         
@@ -75,9 +73,8 @@
             });
         });
 
-        // 新增業務欄位
         html += `</div><div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
-                    <div class="group-title">➕ 指派給新人 (不在清單中)</div>
+                    <div class="group-title">➕ 指派給新人</div>
                     <input type="text" id="newSales" placeholder="輸入新人姓名">
                     <button class="sales-btn" style="background:#555; justify-content:center;" onclick="executeAssign(document.getElementById('newSales').value)">確認指派新人</button>
                  </div></div>`;
@@ -97,7 +94,7 @@
     function renderAssignSuccess(res, name) {
         let html = `<div class="card"><h1>${res.status}</h1>`;
         if (!res.pushed) {
-            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:220px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db; justify-content:center;">📋 複製文字並關閉</button></div>`;
+            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:180px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db; justify-content:center;">📋 複製文字並關閉</button></div>`;
         } else {
             html += `<p>✅ 已推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn" style="justify-content:center;">完成</button>`;
         }
@@ -105,15 +102,7 @@
     }
 
     function renderReportUI(data) {
-        let html = `<div class="card">`;
-        if (!data.isBound) {
-            const bindLink = `https://line.me/R/oaMessage/${BOT_BASIC_ID}/?我是${data.salesName}`;
-            html += `<a href="${bindLink}" class="bind-btn">⚠️ 點我綁定身份 (第一次使用必點)</a>`;
-        }
-        html += `<h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p>
-                 <div class="history-box">📌 前次紀錄：<br>${data.last}</div>`;
-        
-        // 恢復完整的分類標籤
+        let html = `<div class="card"><h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p><div class="history-box">📌 前次紀錄：<br>${data.last}</div>`;
         const groups = [
             { title: "🔥 開發中", opts: ["⏳ 電話未接 / 語音", "🟢 已加 LINE 聯繫", "🤝 約定現場拜訪"] },
             { title: "⏳ 長期跟進", opts: ["🤔 屋主考慮中", "🛠️ 整修中", "🔑 尚未交屋", "📅 等合約到期"] },
@@ -121,15 +110,12 @@
             { title: "🏆 最終結果", opts: ["🥇 已簽委託 (成交)", "🔚 已租出 / 委託他家"] },
             { title: "📝 其他", opts: ["其他"] }
         ];
-
         groups.forEach(g => {
             html += `<div class="group-title">${g.title}</div><div class="option-grid">`;
             g.opts.forEach(o => { html += `<div class="opt" onclick="selectOpt(this, '${o}')">${o}</div>`; });
             html += `</div>`;
         });
-
-        html += `<textarea id="note" placeholder="在此輸入補充說明..."></textarea>
-                 <button class="sales-btn" style="background:#3498db; justify-content:center;" onclick="submitReport()">確認送出回報</button></div>`;
+        html += `<textarea id="note" placeholder="在此輸入補充說明..."></textarea><button class="sales-btn" style="background:#3498db; justify-content:center;" onclick="submitReport()">確認送出回報</button></div>`;
         document.getElementById('app').innerHTML = html;
     }
 
@@ -145,12 +131,4 @@
         const res = await fetch(url);
         const json = await res.json();
         if (json.status === "成功") {
-            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()" style="justify-content:center;">關閉</button></div>`;
-        } else { alert("回報失敗：" + json.status); location.reload(); }
-    }
-
-    function copyAndClose() { const t = document.getElementById('t'); t.select(); document.execCommand('copy'); alert('已複製！'); window.close(); }
-    init();
-</script>
-</body>
-</html>
+            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><b
