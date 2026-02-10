@@ -21,7 +21,7 @@
 <body>
 <div id="app"><div style="padding:100px; font-size:20px;">🌀 系統安全連線中...</div></div>
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyd5ktLLf4VmAnUNd8s_6wT3O4iND2_wE-eu5ilyfjfvxjQrZfKdblxa1wcPiip845O/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzwhnD6CHUCr3GisYiCYknaPN2WC9Zm5E2B11nlBhFO-9ZVjIIMsO3A_oMBxv-usP_d/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
@@ -56,7 +56,7 @@
 
     async function executeAssign(name) {
         if(!confirm(`確認指派給 ${name}？`)) return;
-        document.getElementById('app').innerHTML = "🚀 正在指派...";
+        document.getElementById('app').innerHTML = "<h1 style='padding-top:100px;'>🚀 正在指派...</h1>";
         const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_assign&phone=${phone}&city=${encodeURIComponent(city)}&salesName=${encodeURIComponent(name)}`;
         const res = await fetch(url);
         const result = await res.json();
@@ -77,7 +77,7 @@
         let html = `<div class="card"><h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p><div class="history-box">📌 前次紀錄：<br>${data.last}</div><div class="option-grid">`;
         const opts = ["電話未接", "已加LINE", "約定現場", "不符條件", "已簽委託", "租金過高"];
         opts.forEach(o => { html += `<div class="opt" onclick="selectOpt(this, '${o}')">${o}</div>`; });
-        html += `</div><textarea id="note" placeholder="補充說明..."></textarea><button class="sales-btn" style="background:#3498db;" onclick="submitReport()">確認送出</button></div>`;
+        html += `</div><textarea id="note" placeholder="在此輸入補充說明..."></textarea><button class="sales-btn" style="background:#3498db;" onclick="submitReport()">確認送出</button></div>`;
         document.getElementById('app').innerHTML = html;
     }
 
@@ -86,8 +86,13 @@
 
     async function submitReport() {
         if(!selectedValue) return alert('請先選擇一個狀態');
-        document.getElementById('app').innerHTML = "📤 傳送中...";
-        const msg = selectedValue + (document.getElementById('note').value ? ' ('+document.getElementById('note').value+')' : '');
+        
+        // --- 修正順序：先拿資料，再顯示 loading ---
+        const note = document.getElementById('note').value;
+        const msg = selectedValue + (note ? ' (' + note + ')' : '');
+        
+        document.getElementById('app').innerHTML = "<h1 style='padding-top:100px;'>📤 正在傳送...</h1>";
+        
         const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
         const res = await fetch(url);
         const json = await res.json();
