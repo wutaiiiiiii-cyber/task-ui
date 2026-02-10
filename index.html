@@ -7,27 +7,24 @@
     <style>
         body { font-family: sans-serif; padding: 10px; text-align: center; background: #f4f7f6; color: #333; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-        .sales-btn { width: 100%; padding: 18px; margin: 8px 0; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .sales-btn { width: 100%; padding: 18px; margin: 8px 0; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .sales-btn span.count { background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; font-size: 14px; }
         .usage-box { background: #eee; border-radius: 20px; height: 10px; overflow: hidden; margin-bottom: 10px; }
         .usage-bar { height: 100%; transition: width 0.5s; }
-        .history-box { background: #fff9db; padding: 10px; border-radius: 8px; text-align: left; font-size: 14px; margin-bottom: 15px; border-left: 5px solid #f1c40f; }
-        
-        /* 警告框樣式 */
-        .warning-box { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 12px; border-radius: 10px; text-align: left; font-size: 14px; margin-bottom: 15px; line-height: 1.5; }
-        
+        .warning-box { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 12px; border-radius: 10px; text-align: left; font-size: 14px; margin-bottom: 15px; }
         .group-title { text-align: left; font-size: 13px; color: #888; margin: 15px 0 5px 5px; font-weight: bold; }
         .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; }
         .opt.selected { background: #2ecc71; color: white; border-color: #27ae60; }
-        
         textarea { width: 100%; height: 80px; margin: 10px 0; padding: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
+        .copy-area { margin-top: 20px; background: #f8f9fa; border: 1px dashed #999; padding: 10px; border-radius: 10px; text-align: left; }
     </style>
 </head>
 <body>
 <div id="app"><div style="padding:100px; font-size:20px;">🌀 系統安全連線中...</div></div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzPNP4rrtzsileS6m1LCrB4DobSH88UZ-vUGJ0uuhVjKUdagO7S-m8A08ddThDG2FwOoA/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzTxmWSzCzE5n3eYQih5j2c_pTmfZuWlnQiXhMYiFhZP7WD2sCDzbQwmahFcYIDfJ92/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
@@ -48,29 +45,39 @@
         } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2>"; }
     }
 
-    // --- 主管指派 UI (新增重複指派提醒) ---
     function renderAssignUI(data) {
         let html = `<div class="card">
             <div style="font-size:11px;text-align:left;color:#666;">額度：${data.usage}/200</div>
             <div class="usage-box"><div class="usage-bar" style="width:${(data.usage/200)*100}%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>`;
         
-        // 【新增】重複指派警告邏輯
         if (data.client.currentSales) {
-            html += `
-            <div class="warning-box">
-                ⚠️ <b>重複指派警告</b><br>
-                此名單已於 <b>${data.client.lastUpdateTime}</b> 指派給 <b>${data.client.currentSales}</b><br>
-                最後回報：${data.client.last || "尚無回報內容"}
-            </div>`;
+            html += `<div class="warning-box">⚠️ <b>重複指派警告</b><br>已於 ${data.client.lastUpdateTime} 指派給 ${data.client.currentSales}<br>最後回報：${data.client.last || "無"}</div>`;
         }
 
-        html += `
-            <h2>📍 指派客戶 [${city}]</h2>
-            <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender}</div>
-            <p>需求：${data.client.req}</p><hr>`;
+        html += `<h2>📍 指派客戶 [${city}]</h2>
+                 <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender}</div>
+                 <p>需求：${data.client.req}</p><hr>
+                 <div class="group-title">⭐ ${city.replace(/[市縣]/g, "")} 業務 (括號內為今日接單數)</div>`;
             
-        data.sales.primary.forEach(name => { html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name}</button>`; });
-        html += `<p style="font-size:12px;color:#999;">點擊姓名即可完成指派</p></div>`;
+        // 渲染主地區業務
+        data.sales.primary.forEach(name => {
+            const count = data.todayStats[name] || 0;
+            html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name} <span class="count">${count}</span></button>`;
+        });
+
+        // 渲染跨區業務
+        html += `<button id="tBtn" style="background:#95a5a6;width:90%;margin-top:20px;color:white;border:none;padding:10px;border-radius:10px;" onclick="document.getElementById('oG').style.display='block';this.style.display='none';">🌐 顯示跨區業務</button>
+                 <div id="oG" style="display:none;margin-top:10px;border:1px solid #ddd;padding:10px;border-radius:10px;">`;
+        
+        Object.keys(data.sales.others).forEach(c => {
+            html += `<div class="group-title">${c}</div>`;
+            data.sales.others[c].forEach(name => {
+                const count = data.todayStats[name] || 0;
+                html += `<button class="sales-btn" style="background:#3498db; font-size:15px; padding:12px;" onclick="executeAssign('${name}')">${name} <span class="count">${count}</span></button>`;
+            });
+        });
+
+        html += `</div></div>`;
         document.getElementById('app').innerHTML = html;
     }
 
@@ -80,7 +87,17 @@
         const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_assign&phone=${phone}&city=${encodeURIComponent(city)}&salesName=${encodeURIComponent(name)}`;
         const res = await fetch(url);
         const result = await res.json();
-        document.getElementById('app').innerHTML = `<div class="card" style="margin-top:50px;"><h1>${result.status}</h1><button onclick="window.close()" class="sales-btn">完成</button></div>`;
+        renderAssignSuccess(result, name);
+    }
+
+    function renderAssignSuccess(res, name) {
+        let html = `<div class="card"><h1 style="color:#2ecc71;">${res.status}</h1>`;
+        if (!res.pushed) {
+            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:150px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db; justify-content:center;">📋 複製文字並關閉</button></div>`;
+        } else {
+            html += `<p>✅ 已推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn" style="justify-content:center;">完成</button>`;
+        }
+        document.getElementById('app').innerHTML = html + "</div>";
     }
 
     // --- 業務回報 UI (新增「其他」按鈕) ---
@@ -127,6 +144,14 @@
                 document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
             } else { alert("回報失敗：" + json.status); location.reload(); }
         } catch (e) { alert("連線失敗"); location.reload(); }
+    }
+  // --- 輔助功能：複製文字並關閉 (用於指派給沒有 LINE ID 的業務時) ---
+    function copyAndClose() { 
+        const t = document.getElementById('t'); 
+        t.select(); 
+        document.execCommand('copy'); 
+        alert('已複製指派內容！請手動貼給業務。'); 
+        window.close(); 
     }
 
     init();
