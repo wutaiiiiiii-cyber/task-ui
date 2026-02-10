@@ -50,7 +50,7 @@
             <div class="progress-container" style="width:100%; margin:5px 0;"><div style="width:${(data.usage/200)*100}%; height:100%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>`;
         
         if (data.client.currentSales) {
-            html += `<div class="warning-box">⚠️ <b>重複指派警告</b><br>已指派給 ${data.client.currentSales}<br>最後回報：${data.client.last || "無"}</div>`;
+            html += `<div class="warning-box">⚠️ <b>重複指派警告</b><br>已於 ${data.client.lastUpdateTime} 指派給 ${data.client.currentSales}<br>最後回報：${data.client.last || "無"}</div>`;
         }
 
         html += `<h2>📍 指派客戶 [${city}]</h2>
@@ -63,6 +63,7 @@
             html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name} <span class="count">${count}</span></button>`;
         });
 
+        // 跨區業務按鈕
         html += `<button id="tBtn" style="background:#95a5a6;width:100%;margin-top:20px;color:white;border:none;padding:15px;border-radius:10px;font-weight:bold;cursor:pointer;" onclick="document.getElementById('oG').style.display='block';this.style.display='none';">🌐 顯示跨區業務</button>
                  <div id="oG" style="display:none;margin-top:10px;border:1px solid #ddd;padding:10px;border-radius:10px;">`;
         
@@ -74,6 +75,7 @@
             });
         });
 
+        // 新增業務欄位
         html += `</div><div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
                     <div class="group-title">➕ 指派給新人 (不在清單中)</div>
                     <input type="text" id="newSales" placeholder="輸入新人姓名">
@@ -111,6 +113,7 @@
         html += `<h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p>
                  <div class="history-box">📌 前次紀錄：<br>${data.last}</div>`;
         
+        // 恢復完整的分類標籤
         const groups = [
             { title: "🔥 開發中", opts: ["⏳ 電話未接 / 語音", "🟢 已加 LINE 聯繫", "🤝 約定現場拜訪"] },
             { title: "⏳ 長期跟進", opts: ["🤔 屋主考慮中", "🛠️ 整修中", "🔑 尚未交屋", "📅 等合約到期"] },
