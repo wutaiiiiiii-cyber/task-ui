@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>廣告名單指派系統</title>
+    <title>廣告名單管理系統</title>
     <style>
         body { font-family: sans-serif; padding: 10px; text-align: center; background: #f4f7f6; color: #333; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
@@ -12,49 +12,44 @@
         .usage-bar { height: 100%; transition: width 0.5s; }
         .history-box { background: #fff9db; padding: 10px; border-radius: 8px; text-align: left; font-size: 14px; margin-bottom: 15px; border-left: 5px solid #f1c40f; }
         .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .opt.selected { background: #2ecc71; color: white; border-color: #27ae60; }
         textarea { width: 100%; height: 80px; margin: 15px 0; padding: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
         .copy-area { margin-top: 20px; background: #f8f9fa; border: 1px dashed #999; padding: 10px; border-radius: 10px; text-align: left; }
     </style>
 </head>
 <body>
-<div id="app"><div style="padding:100px; font-size:20px;">🌀 安全載入中...</div></div>
+<div id="app"><div style="padding:100px; font-size:20px;">🌀 系統安全連線中...</div></div>
 <script>
-    // --- 務必修改這裡 ---
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzwhnD6CHUCr3GisYiCYknaPN2WC9Zm5E2B11nlBhFO-9ZVjIIMsO3A_oMBxv-usP_d/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyd5ktLLf4VmAnUNd8s_6wT3O4iND2_wE-eu5ilyfjfvxjQrZfKdblxa1wcPiip845O/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action') || "boss_assign";
-    const phone = params.get('phone');
-    const city = params.get('city');
+    const phone = params.get('phone') || "";
+    const city = params.get('city') || "";
 
     async function init() {
-        if (!phone || !city) return document.getElementById('app').innerHTML = "<h2>❌ 網址參數有誤</h2>";
-        
+        if (!phone || !city) return document.getElementById('app').innerHTML = "<h2>❌ 參數錯誤</h2>";
         const mode = (action === "sales_report") ? "get_report_data" : "get_assign_data";
         try {
-            const res = await fetch(`${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}`);
+            const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}`;
+            const res = await fetch(url);
             const json = await res.json();
-            if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
-            
+            if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg || "找不到資料"}</p>`;
             if (action === "sales_report") renderReportUI(json.data);
             else renderAssignUI(json.data);
-        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線至伺服器</h2>"; }
+        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2>"; }
     }
 
     function renderAssignUI(data) {
         let html = `<div class="card">
-            <div style="font-size:11px;text-align:left;color:#666;">額度：${data.usage}/200</div>
+            <div style="font-size:11px;text-align:left;">額度：${data.usage}/200</div>
             <div class="usage-box"><div class="usage-bar" style="width:${(data.usage/200)*100}%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>
             <h2>📍 指派客戶 [${city}]</h2>
             <div style="font-size:22px;font-weight:bold;">${data.client.name} ${data.client.gender}</div>
             <p>需求：${data.client.req}</p><hr>`;
-        
-        data.sales.primary.forEach(name => {
-            html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name}</button>`;
-        });
+        data.sales.primary.forEach(name => { html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name}</button>`; });
         html += `<p style="font-size:12px;color:#999;">點擊姓名即可指派</p></div>`;
         document.getElementById('app').innerHTML = html;
     }
@@ -73,7 +68,7 @@
         if (!res.pushed) {
             html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:150px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db;">📋 複製文字並關閉</button></div>`;
         } else {
-            html += `<p>✅ 已成功推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn">完成</button>`;
+            html += `<p>✅ 已推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn">完成</button>`;
         }
         document.getElementById('app').innerHTML = html + "</div>";
     }
@@ -87,43 +82,21 @@
     }
 
     let selectedValue = "";
-    function selectOpt(el, val) {
-        document.querySelectorAll('.opt').forEach(x => x.classList.remove('selected'));
-        el.classList.add('selected'); selectedValue = val;
+    function selectOpt(el, val) { document.querySelectorAll('.opt').forEach(x => x.classList.remove('selected')); el.classList.add('selected'); selectedValue = val; }
+
+    async function submitReport() {
+        if(!selectedValue) return alert('請先選擇一個狀態');
+        document.getElementById('app').innerHTML = "📤 傳送中...";
+        const msg = selectedValue + (document.getElementById('note').value ? ' ('+document.getElementById('note').value+')' : '');
+        const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.status === "成功") {
+            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
+        } else { alert("回報失敗：" + json.status); location.reload(); }
     }
 
-   async function submitReport() {
-    if(!selectedValue) return alert('請先選擇一個進度狀態');
-    
-    document.getElementById('app').innerHTML = "📤 正在傳送回報，請稍候...";
-    
-    const note = document.getElementById('note').value;
-    const msg = selectedValue + (note ? ' (' + note + ')' : '');
-    
-    // 【關鍵檢查點】網址參數名稱必須跟 GAS 一致
-    // 這裡我們用 message 作為參數名稱
-    const reportUrl = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
-    
-    try {
-        const res = await fetch(reportUrl);
-        const result = await res.json();
-        
-        if (result.status === "成功") {
-            document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><p>資料已同步回試算表。</p><button class="sales-btn" onclick="window.close()">關閉</button></div>`;
-        } else {
-            alert("回報失敗：" + result.status);
-            location.reload(); // 失敗就重整
-        }
-    } catch (e) {
-        alert("連線失敗，請檢查網路");
-        location.reload();
-    }
-}
-
-    function copyAndClose() {
-        const t = document.getElementById('t'); t.select(); document.execCommand('copy');
-        alert('已複製！'); window.close();
-    }
+    function copyAndClose() { const t = document.getElementById('t'); t.select(); document.execCommand('copy'); alert('已複製！'); window.close(); }
     init();
 </script>
 </body>
