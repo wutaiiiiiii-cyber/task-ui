@@ -9,44 +9,108 @@
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
         .sales-btn { width: 100%; padding: 18px; margin: 8px 0; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
         .sales-btn span.count { background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; font-size: 14px; }
+        
+        /* 進度條樣式 */
         .progress-container { width: 80%; background: #eee; height: 8px; border-radius: 10px; margin: 20px auto; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background: #3498db; animation: loading 2s infinite; }
         @keyframes loading { 0% { width: 0%; } 50% { width: 70%; } 100% { width: 100%; } }
+
         .warning-box { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 12px; border-radius: 10px; text-align: left; font-size: 14px; margin-bottom: 15px; }
         .group-title { text-align: left; font-size: 13px; color: #888; margin: 15px 0 5px 5px; font-weight: bold; }
         .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .opt { background: #fff; border: 2px solid #ddd; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
         .opt.selected { background: #2ecc71; color: white; border-color: #27ae60; }
+        
         textarea, input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
         .bind-btn { background: #e67e22; color: white; padding: 15px; border-radius: 10px; text-align: center; display: block; text-decoration: none; margin-bottom: 15px; font-weight: bold; }
+        .dashboard-item { text-align: left; margin-bottom: 15px; border-left: 8px solid #f39c12; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
-<div id="app"><div style="padding-top:100px;"><div class="progress-container"><div class="progress-bar"></div></div><p>正在安全連線中...</p></div></div>
+
+<div id="app">
+    <div style="padding-top:100px;">
+        <div class="progress-container"><div class="progress-bar"></div></div>
+        <p>正在安全連線至公司資料庫...</p>
+    </div>
+</div>
+
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbx2WtCRdchr77DPpM8i2E5yjIVdmGfeLO75zITjoGRlybvGoAPbFXNWFB3iftb3EXz3Zw/exec"; 
+    // ==========================================
+    // 1. 設定區 (務必填寫)
+    // ==========================================
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxvVQX-jsijyhYOHLFcmdWGa7ImfqNegfYh89bgpvB_CtBt4BUxhOs-07EWC3J-ZmovIg/exec"; 
     const WEB_APP_PASSWORD = "a97337000"; 
 
+    // ==========================================
+    // 2. 初始化與路由判斷
+    // ==========================================
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action') || "boss_assign";
     const phone = params.get('phone') || "";
     const city = params.get('city') || "";
 
     async function init() {
-        if (!phone || !city) return document.getElementById('app').innerHTML = "<h2>❌ 參數錯誤</h2>";
-        const mode = (action === "sales_report") ? "get_report_data" : "get_assign_data";
+        // 儀表板模式不需要 phone/city 參數
+        if (action !== "manager_dashboard" && (!phone || !city)) {
+            return document.getElementById('app').innerHTML = "<h2>❌ 參數缺失</h2><p>請從 LINE 重新點擊連結</p>";
+        }
+
+        let mode = "get_assign_data";
+        if (action === "sales_report") mode = "get_report_data";
+        if (action === "manager_dashboard") mode = "get_manager_dashboard";
+
         try {
             const res = await fetch(`${GAS_URL}?key=${WEB_APP_PASSWORD}&action=${mode}&phone=${phone}&city=${encodeURIComponent(city)}`);
             const json = await res.json();
-            if (json.status !== "success") return document.getElementById('app').innerHTML = `<h2>❌ 錯誤</h2><p>${json.msg}</p>`;
-            if (action === "sales_report") renderReportUI(json.data);
+            
+            if (json.status !== "success") return showError(json.msg);
+
+            if (action === "manager_dashboard") renderManagerDashboard(json.data);
+            else if (action === "sales_report") renderReportUI(json.data);
             else renderAssignUI(json.data);
-        } catch (e) { document.getElementById('app').innerHTML = "<h2>❌ 無法連線</h2>"; }
+
+        } catch (e) {
+            showError("無法連線至伺服器，請確認網路或 GAS 部署設定。");
+        }
     }
 
+    // ==========================================
+    // 3. 主管待辦儀表板 UI
+    // ==========================================
+    function renderManagerDashboard(list) {
+        let html = `<div style="max-width:500px; margin:0 auto;">
+            <h1 style="margin-bottom:5px;">🔥 待指派清單</h1>
+            <p style="color:#666; margin-bottom:20px;">(僅顯示 48 小時內名單)</p>`;
+
+        if (list.length === 0) {
+            html += `<div class="card">✅ 目前沒有待指派名單</div>`;
+        } else {
+            list.forEach(item => {
+                const color = item.waitMinutes > 120 ? "#e74c3c" : "#f39c12";
+                html += `
+                <div class="dashboard-item" style="border-left-color: ${color};">
+                    <div style="display:flex; justify-content:space-between;">
+                        <b style="color:#2c3e50;">[${item.city}] ${item.name}</b>
+                        <span style="font-size:12px; color:#999;">${item.timeStr}</span>
+                    </div>
+                    <p style="font-size:14px; color:#666; margin: 10px 0;">需求：${item.req}</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:${color}; font-weight:bold;">⏳ 已等待 ${item.waitMinutes} 分鐘</span>
+                        <button onclick="window.location.href='?action=boss_assign&phone=${item.phone}&city=${encodeURIComponent(item.city)}'" style="background:${color}; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">立即指派</button>
+                    </div>
+                </div>`;
+            });
+        }
+        document.getElementById('app').innerHTML = html + `</div>`;
+    }
+
+    // ==========================================
+    // 4. 主管指派 UI
+    // ==========================================
     function renderAssignUI(data) {
         let html = `<div class="card">
-            <div style="font-size:11px;text-align:left;">額度：${data.usage}/200</div>
+            <div style="font-size:11px;text-align:left;color:#666;">目前 LINE 額度：${data.usage}/200</div>
             <div class="progress-container" style="width:100%; margin:5px 0;"><div style="width:${(data.usage/200)*100}%; height:100%; background:${data.usage>=170?'#e74c3c':'#2ecc71'};"></div></div>`;
         
         if (data.client.currentSales) {
@@ -63,7 +127,6 @@
             html += `<button class="sales-btn" onclick="executeAssign('${name}')">${name} <span class="count">${count}</span></button>`;
         });
 
-        // 跨區業務按鈕
         html += `<button id="tBtn" style="background:#95a5a6;width:100%;margin-top:20px;color:white;border:none;padding:15px;border-radius:10px;font-weight:bold;cursor:pointer;" onclick="document.getElementById('oG').style.display='block';this.style.display='none';">🌐 顯示跨區業務</button>
                  <div id="oG" style="display:none;margin-top:10px;border:1px solid #ddd;padding:10px;border-radius:10px;">`;
         
@@ -75,7 +138,6 @@
             });
         });
 
-        // 新增業務欄位
         html += `</div><div style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;">
                     <div class="group-title">➕ 指派給新人 (不在清單中)</div>
                     <input type="text" id="newSales" placeholder="輸入新人姓名">
@@ -97,13 +159,16 @@
     function renderAssignSuccess(res, name) {
         let html = `<div class="card"><h1>${res.status}</h1>`;
         if (!res.pushed) {
-            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:220px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db; justify-content:center;">📋 複製文字並關閉</button></div>`;
+            html += `<div class="copy-area"><textarea id="t" readonly style="width:100%; height:180px;">${res.copyText}</textarea><button onclick="copyAndClose()" class="sales-btn" style="background:#3498db; justify-content:center;">📋 複製文字並關閉</button></div>`;
         } else {
             html += `<p>✅ 已推播資料給 ${name}。</p><button onclick="window.close()" class="sales-btn" style="justify-content:center;">完成</button>`;
         }
         document.getElementById('app').innerHTML = html + "</div>";
     }
 
+    // ==========================================
+    // 5. 業務回報 UI
+    // ==========================================
     function renderReportUI(data) {
         let html = `<div class="card">`;
         if (!data.isBound) {
@@ -113,7 +178,6 @@
         html += `<h2>📝 回報進度</h2><p>客戶：<b>${data.name}</b> (${city})</p>
                  <div class="history-box">📌 前次紀錄：<br>${data.last}</div>`;
         
-        // 恢復完整的分類標籤
         const groups = [
             { title: "🔥 開發中", opts: ["⏳ 電話未接 / 語音", "🟢 已加 LINE 聯繫", "🤝 約定現場拜訪"] },
             { title: "⏳ 長期跟進", opts: ["🤔 屋主考慮中", "🛠️ 整修中", "🔑 尚未交屋", "📅 等合約到期"] },
@@ -138,18 +202,28 @@
 
     async function submitReport() {
         if(!selectedValue) return alert('請先選擇一個狀態');
+        
+        // 關鍵順序：先讀取值，再清空畫面
         const noteValue = document.getElementById('note').value;
         const msg = selectedValue + (noteValue ? ' (' + noteValue + ')' : '');
+        
         document.getElementById('app').innerHTML = "<div style='padding-top:100px;'><div class='progress-container'><div class='progress-bar'></div></div><p>正在傳送回報...</p></div>";
+        
         const url = `${GAS_URL}?key=${WEB_APP_PASSWORD}&action=execute_report&phone=${phone}&city=${encodeURIComponent(city)}&message=${encodeURIComponent(msg)}`;
         const res = await fetch(url);
         const json = await res.json();
+        
         if (json.status === "成功") {
             document.getElementById('app').innerHTML = `<div class="card"><h1>✅ 回報成功</h1><button class="sales-btn" onclick="window.close()" style="justify-content:center;">關閉</button></div>`;
         } else { alert("回報失敗：" + json.status); location.reload(); }
     }
 
-    function copyAndClose() { const t = document.getElementById('t'); t.select(); document.execCommand('copy'); alert('已複製！'); window.close(); }
+    // ==========================================
+    // 6. 輔助函式
+    // ==========================================
+    function copyAndClose() { const t = document.getElementById('t'); t.select(); document.execCommand('copy'); alert('已複製指派內容！'); window.close(); }
+    function showError(msg) { document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:red;">❌ 錯誤</h2><p>${msg}</p><button onclick="location.reload()" class="sales-btn" style="background:#999; justify-content:center;">重新整理</button></div>`; }
+
     init();
 </script>
 </body>
